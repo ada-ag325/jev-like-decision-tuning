@@ -1,5 +1,3 @@
 # Source code
 
-The `jev_decision_tuning` package contains `prompts.py` for prompt text and option mapping, and `data.py` for loading, sampling, formatting, and tokenization. Install it from the repository root with `python -m pip install -e .`.
-
-Model loading, batching, training, and evaluation orchestration currently remain in the notebook.
+`jev_decision_tuning` contains data/prompt helpers, configuration validation, model and adapter loading, option-based training, evaluation, metrics, and experiment artifact management. See the root README for installation and the complete train/save/reload/evaluate workflow.

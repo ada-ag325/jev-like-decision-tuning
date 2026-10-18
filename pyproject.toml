@@ -11,6 +11,15 @@ dependencies = ["datasets>=2.14,<5"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "nbformat>=5"]
+train = [
+    "torch>=2.6,<3",
+    "transformers==4.57.1",
+    "peft==0.17.1",
+    "accelerate==1.10.1",
+    "scikit-learn>=1.3,<2",
+    "tqdm>=4.66",
+]
+jev = ["typesafe-sdk", "scikit-learn>=1.3,<2", "tqdm>=4.66"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

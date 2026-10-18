@@ -1,74 +1,91 @@
 # jev-like-decision-tuning
 
-Option-based decision tuning experiments with Qwen3-1.7B and LoRA on TweetEval sentiment classification. The notebook compares the base model, the fine-tuned model, and the Jev API.
-
-"Jev-like" describes the experimental direction; this repository does not claim to reproduce Jev's internal implementation.
+Option-based sentiment decision tuning with Qwen3-1.7B and LoRA. Training optimizes cross-entropy over the next-token A/B/C logits, while the original model weights remain frozen. Jev is an optional external evaluation reference; this project does not claim to reproduce Jev's internal implementation or distill its outputs.
 
 ## Current status
 
-Data loading, sampling, prompt construction, and training tokenization have been extracted into an installable Python package. Model loading, batching, training, and evaluation orchestration remain in [`notebooks/jev.ipynb`](notebooks/jev.ipynb).
+The project supports **train -> save -> reload -> evaluate** through Python modules, command-line scripts, and a Colab notebook. Training and evaluation run independently; evaluation reads the saved adapter, tokenizer, base-model identity, and configuration from disk.
 
-The notebook still requires Google Colab, a local TweetEval DatasetDict on Google Drive, a CUDA training environment, and a Jev API key stored under `jev` in Colab Secrets. Training and API evaluation have not been rerun as part of this refactor. Saved cell outputs are omitted.
+The original executed pilot is preserved in [`notebooks/archive/jev_20261018_pilot.ipynb`](notebooks/archive/jev_20261018_pilot.ipynb). The new workflow is in [`notebooks/jev.ipynb`](notebooks/jev.ipynb). Offline tests train an actual tiny randomly initialized Qwen3 model and verify adapter reload and evaluation in separate processes. The new pipeline has not yet been rerun on the full pretrained Qwen3 model with CUDA or the live Jev API.
 
-## Repository layout
+## Install
 
-```text
-jev-like-decision-tuning/
-├── notebooks/                 # Colab experiment and interactive exploration
-├── src/jev_decision_tuning/
-│   ├── data.py                # Loading, sampling, formatting, tokenization
-│   └── prompts.py             # Prompt text, option mapping, chat template
-├── configs/                   # Reserved for experiment configurations
-├── scripts/                   # Reserved for command-line entry points
-├── tests/                     # Data and prompt regression tests
-├── docs/                      # Method and workflow documentation
-├── pyproject.toml             # Package and data/test dependencies
-├── README.md
-└── .gitignore
-```
-
-`src/` holds reusable implementation; future `scripts/` will call it. Local datasets belong in `data/`, and model weights, predictions, and logs belong in `outputs/`. Both directories are ignored by Git. Share curated experiment findings in `docs/`.
-
-## Install and test the extracted utilities
-
-From the repository root, with Python 3.10 or newer:
+Use Python 3.10 or newer. From the repository root:
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-python -m pip install -e '.[dev]'
-python -m pytest
+python -m pip install -e '.[train,dev]'
+python -m pytest -q
 ```
 
-The package installs the data-processing dependency, `datasets`. The `dev` extra adds test and notebook-validation dependencies. It does not install the full model-training stack or download model weights or datasets. Dependency ranges are not a reproducibility lockfile.
+The `train` extra pins Transformers, PEFT, and Accelerate to the versions tested by this implementation. PyTorch and dataset dependencies have version ranges; each training/evaluation records the versions actually used. This is not a complete environment lockfile. Standard configurations require a CUDA GPU; CPU float32 is supported for small tests. No model or dataset is downloaded by the test suite.
 
-## Use the data pipeline
+For the optional Jev comparison, install `python -m pip install -e '.[train,jev]'`. API credentials are supplied at runtime and never saved into experiment configurations.
 
-```python
-from jev_decision_tuning.data import (
-    load_sentiment_dataset,
-    sample_balanced,
-    format_training_dataset,
-)
+## Train, save, reload, evaluate
 
-# Load an existing DatasetDict saved with Hugging Face save_to_disk.
-ds = load_sentiment_dataset("data/tweet_eval_sentiment")
-train = sample_balanced(ds["train"], per_class=3000, seed=42)
-formatted = format_training_dataset(train, seed=42)
-print(formatted[0]["prompt"])
-print(formatted[0]["target_letter"])
+Prepare a local Hugging Face DatasetDict saved with `save_to_disk`, with `train`, `validation`, and `test` splits. The expected sentiment ClassLabel order is negative, neutral, positive. The dataset is not included in this repository and the loader does not download it.
+
+Run these commands from the repository root on a CUDA machine:
+
+```bash
+python scripts/train.py \
+  --config configs/attention_mlp.json \
+  --data-path /absolute/path/to/tweet_eval_sentiment \
+  --output-dir outputs/attention_mlp_seed42
 ```
 
-See [`docs/data-and-prompts.md`](docs/data-and-prompts.md) for input/output contracts and the distinction between a class ID and an answer position.
+The output directory must be new. This trains one epoch on 3,000 examples per class and saves the adapter and tokenizer. The base model may be downloaded from Hugging Face on first use. No Jev requests are made during training.
 
-## Run the notebook in Colab
+You may now stop Python or restart the runtime. Evaluate the saved adapter in a new process:
 
-Keep a full repository checkout accessible to Colab. The first cell mounts Drive, installs the package from `REPO_ROOT`, and imports the extracted helpers. Set `REPO_ROOT` to your checkout; its default is `/content/drive/MyDrive/jev-like-decision-tuning`. Set the dataset path in the next cell to your saved TweetEval sentiment DatasetDict. Uploading the notebook alone is no longer sufficient.
+```bash
+python scripts/evaluate.py \
+  --run-dir outputs/attention_mlp_seed42 \
+  --split validation \
+  --backend lora
 
-The remaining cells retain the existing Colab training workflow and model dependency installation cells. Full environment pinning and command-line entry points are future work.
+python scripts/evaluate.py \
+  --run-dir outputs/attention_mlp_seed42 \
+  --split validation \
+  --backend base
+```
 
-## Next steps
+Use `--limit 100` for a quick check; limited evaluations have distinct filenames. Use `--split test` after fixing the experiment design. `--split train` evaluates the full training split, not only the selected 9,000 examples. If the dataset moved, pass `--data-path /new/path`. For CPU testing, specify both `--device cpu --precision float32`.
 
-1. Extract model loading, option scoring, and LoRA training.
-2. Extract Qwen / Jev evaluation and metric reporting.
-3. Add experiment configurations, complete environment specifications, and runnable scripts.
+Existing runs and evaluation names are not overwritten. To deliberately repeat an evaluation, provide a new `--name`, such as `validation_lora_repeat1`. This workflow reloads finished adapters for inference; it does not resume an interrupted optimizer or continue training from a previous adapter.
+
+## Experiment artifacts
+
+```text
+outputs/attention_mlp_seed42/
+├── config.json                  # Resolved settings and data/model paths
+├── metadata.json                # Status, revisions, environment, code and data fingerprints
+├── training_samples.jsonl       # Source row IDs, labels, answer positions, prompt hashes
+├── training_log.json            # Loss history, parameter count, time and peak GPU memory
+├── adapter/                     # LoRA weights, PEFT configuration, saved tokenizer
+└── evaluation/
+    ├── validation_lora.predictions.jsonl
+    ├── validation_lora.metrics.json
+    ├── validation_base.predictions.jsonl
+    └── validation_base.metrics.json
+```
+
+Predictions contain row IDs, true/predicted labels, and class probabilities. Reports include accuracy, Macro-F1, Macro Recall, per-class scores, and a confusion matrix. Every report references its run and training manifest. `metadata.status` becomes `complete` only after adapter and training-log saving succeeds. Failed or unfinished runs cannot be evaluated as completed experiments.
+
+Only adapter weights are saved, so reloading still requires the original base model, from its local path or the Hub/cache. A resolved Hub model revision is recorded when available. Keep the original base files unchanged when using a local base model.
+
+## Colab
+
+Open [`notebooks/jev.ipynb`](notebooks/jev.ipynb) in a GPU runtime. Set `REPO_ROOT` to the full checkout; the default is `/content/drive/MyDrive/jev_project/jev-like-decision-tuning`. The setup cell installs `[train]`, checks source files, and adds `src/` to the current kernel's search path.
+
+Set `DATA_PATH` to your existing Drive dataset and choose a directory for `OUTPUT_ROOT`. The training cell prints the exact completed `RUN_DIR`. To evaluate after restarting, run setup, import `evaluate_experiment`, and set `RUN_DIR` to that saved path; skip the training cell.
+
+Test evaluation and Jev API requests are disabled by default. To use Jev, install the `jev` extra, provide the Colab Secret `jev`, and explicitly enable `RUN_JEV`. New Jev checkpoints include a dataset/request manifest; legacy pilot caches without that manifest are not automatically reused.
+
+## Configurations and scope
+
+`configs/attention.json`, `configs/mlp.json`, and `configs/attention_mlp.json` differ only in LoRA target placement. `--seed` overrides the training seed; dataset selection and option-order seeds stay fixed. These configurations are ready for later ablations, but this refactor does not constitute completed ablation experiments.
+
+See [workflow details](docs/training-and-evaluation.md) and [data/prompt contracts](docs/data-and-prompts.md). The repository's source, documentation, and runtime messages are in English.

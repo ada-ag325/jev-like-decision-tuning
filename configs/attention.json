@@ -1,0 +1,21 @@
+{
+  "data_path": "data/tweet_eval_sentiment",
+  "model_name": "Qwen/Qwen3-1.7B",
+  "model_revision": null,
+  "target_group": "attention",
+  "rank": 8,
+  "alpha": 16,
+  "dropout": 0.05,
+  "per_class": 3000,
+  "data_seed": 42,
+  "option_seed": 42,
+  "train_seed": 42,
+  "epochs": 1,
+  "batch_size": 4,
+  "learning_rate": 5e-05,
+  "weight_decay": 0.01,
+  "max_grad_norm": 1.0,
+  "device": "cuda",
+  "precision": "float16",
+  "log_every": 50
+}

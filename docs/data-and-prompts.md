@@ -8,7 +8,7 @@ Saved TweetEval DatasetDict
   -> sample_balanced(ds["train"], per_class=3000, seed=42)
   -> format_training_dataset(train, seed=42)
   -> tokenize_dataset(formatted, tokenizer)
-  -> notebook DataLoader and LoRA training
+  -> training.py DataLoader and LoRA training
 ```
 
 The loader requires `train`, `validation`, and `test` splits with `text` and `label` columns. Labels must use the ClassLabel names `negative`, `neutral`, `positive`, in that order. Loading reads existing local data; it does not download or resplit it.
@@ -33,7 +33,7 @@ A positive example still has `label=2`, but its `target` is now 0 and `target_le
 
 ## Prompt variants preserved
 
-The notebook originally used two option formats. Both are retained:
+The archived pilot used two option formats. Both remain available through the prompt helpers:
 
 - The initial 100-example baseline uses `build_prompt(text, compact_options=True)`, producing `A:negative`.
 - Training and full Qwen evaluation use the default spacing, producing `A: negative`.
@@ -47,12 +47,12 @@ The Jev API continues to receive raw text plus a structured `Choice`, using the 
 
 `tokenize_example` encodes the chat-formatted prompt with `add_special_tokens=False` and `truncation=False`, then stores `target` as the scalar `labels` value. The correct answer is never appended to the input.
 
-`tokenize_dataset` removes the original formatted columns, leaving tokenizer outputs and `labels`. Right padding, batch collation, last-valid-token selection, and the cross-entropy over A/B/C logits still live in the notebook.
+`tokenize_dataset` removes the original formatted columns, leaving tokenizer outputs and `labels`. Right padding, batch collation, and last-valid-token scoring are implemented in `modeling.py`; `training.py` applies the cross-entropy over A/B/C logits.
 
 ## Refactor boundaries
 
 The prompt strings, sampling defaults, option shuffle sequence, and training tokenization settings are preserved. Dataset schema checks and clear insufficient-sample errors are new. The package must now be installed before importing notebook helpers.
 
-Comments, progress messages, and report column names are in English. Downstream consumers of the old report column names must update their field lookups. The SDK installation cell now precedes its import, and training progress displays the actual number of batches.
+Comments, progress messages, and report column names are in English. Downstream consumers of the old report column names must update their field lookups. The current notebook calls the extracted modules; the earlier executed notebook is preserved under `notebooks/archive/`.
 
-Tests use synthetic datasets and a recording tokenizer, so they do not establish model accuracy or GPU/API runtime compatibility. No model training or Jev requests are needed to run them.
+Tests use synthetic datasets, a recording tokenizer, and a tiny local Qwen3 model, so they do not establish full-model accuracy or GPU/API runtime compatibility. No model training or Jev requests are needed to run them.

@@ -1,7 +1,7 @@
 # Notebooks
 
-`jev.ipynb` contains the Colab workflow for sentiment data preparation, base-model evaluation, LoRA training, and Qwen / Jev comparison.
+`jev.ipynb` is the Colab entry point for the shared train/save/reload/evaluate modules. Set the repository and dataset paths, train a new run, then independently load it for evaluation. Test and Jev API evaluations are disabled by default.
 
-Data and prompt helpers are imported from `src/jev_decision_tuning`. The first cell mounts Google Drive and installs the package from a checkout specified by `REPO_ROOT`. Edit this path for your environment; the notebook requires the repository alongside it.
+The executed notebook from before the training/evaluation extraction is preserved unchanged in `archive/jev_20261018_pilot.ipynb`, including its saved results. It is a historical snapshot and still contains the old inline implementations. Use the current notebook for new runs.
 
-The original notebook was imported with execution outputs, execution counts, and associated widget state removed. Its data and prompt cells have since been refactored, and comments, messages, and report columns are now in English. Training and API results have not been reproduced during this refactor.
+After restarting Colab, run setup and set `RUN_DIR` to a completed run's exact saved path. No retraining is needed for evaluation. The setup cell installs the package and adds its source path to the live kernel.
